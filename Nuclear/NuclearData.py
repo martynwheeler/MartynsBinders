@@ -3,8 +3,11 @@ import matplotlib.pyplot as plt
 import requests
 import io
 import math
+from collections import namedtuple
 
 class NuclearData:
+    nucleus = namedtuple('Nucleus', 'A Z')
+
     # constructor
     def __init__(self, accurate=False):
         # class members
@@ -215,6 +218,7 @@ class NuclearData:
         print(dash)
 
     # print a graph of binding energy per nucleon / MeV
+    # to do: add options for range/number of graphs
     def printGraph(self):
         # group the data by nucleon number, A 
         gdf = self.df.groupby('A')
@@ -246,6 +250,7 @@ class NuclearData:
         # show the plot
         plt.show()
 
+    # calc energy release in alpha decay
     def calcAlphaEnergyReleaseMEV(self, A, Z):
         # can work in atomic masses here...
         # get the atomic mass of an alpha
@@ -424,6 +429,14 @@ class NuclearData:
         # print the value
         print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcBetaEnergyReleaseJ(A, Z)))
 
+    def calcFissioEnergyReleaseMEV(self, pn, ff1, ff2):
+        energyRelease = self.getBindingEnergyMEV(pn.A,pn.Z) - (self.getBindingEnergyMEV(ff1.A,ff1.Z) + self.getBindingEnergyMEV(ff2.A,ff2.Z))
+        return energyRelease
+
+    def calcFissioEnergyReleaseJ(self, pn, ff1, ff2):
+        energyRelease = self.calcFissioEnergyReleaseMEV(pn, ff1, ff2) * 1000 * self.AMU * self.SPEEDOFLIGHT**2 / ((self.AMUTOKEV))
+        return energyRelease
+
 # for debugging
 if __name__ == '__main__':
     data = NuclearData(accurate=False)
@@ -444,3 +457,8 @@ if __name__ == '__main__':
     data.printBetaEnergyReleaseJ(A, Z)
 
     data.printConstants()
+
+    parent = data.nucleus(235,92)
+    ff1 = data.nucleus(144,56)
+    ff2 = data.nucleus(90,36)
+    print(data.calcFissioEnergyReleaseJ(parent, ff1, ff2))
