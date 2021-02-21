@@ -38,7 +38,7 @@ class NuclearData:
             # if the request is successful
             data = req.content.decode('ISO-8859-1')
         else:
-            # terminate
+            # terminate the app
             exit(0)
 
         # Read the experimental data into a Pandas DataFrame.
