@@ -211,6 +211,7 @@ class NuclearData:
         print('{:<36s}{:<14.4f}'.format('mass of neutron / u', self.NEUTRONMASS))
         print('{:<36s}{:<14.2e}'.format('speed of light / m/s', self.SPEEDOFLIGHT))
         print('{:<36s}{:<14.2e}'.format('electron charge / C', self.ELECTRONCHARGE))
+        print('{:<36s}{:<14.2e}'.format('amu to MeV', self.AMUTOKEV / 1000))
         print(dash)
 
     # print a graph of binding energy per nucleon / MeV
