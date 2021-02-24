@@ -495,7 +495,7 @@ class NuclearData:
 
     def calcFusionEnergyReleaseMEV(self, reactants, products):
         '''
-        Returns the energy released in MeV for the specified fission process.
+        Returns the energy released in MeV for the specified fusion process.
         Keyword arguments:
         reactants -- list of the reactant nuclei defined by the type: Nucleus(A, Z)
         products -- list of the product nuclei defined by the type: Nucleus(A, Z)
@@ -543,9 +543,15 @@ class NuclearData:
         energyRelease = deltaMass * self.AMUTOMEV
         return energyRelease
 
-    def toKG(self):
-        print("hello")
-        pass
+    def calcFusionEnergyReleaseJ(self, reactants, products):
+        '''
+        Returns the energy released in J for the specified fusion process.
+        Keyword arguments:
+        reactants -- list of the reactant nuclei defined by the type: Nucleus(A, Z)
+        products -- list of the product nuclei defined by the type: Nucleus(A, Z)
+        '''
+        energyRelease = self.calcFusionEnergyReleaseMEV(reactants, products) * self.AMU * self.SPEEDOFLIGHT**2 / self.AMUTOMEV
+        return energyRelease
 
 # for debugging
 if __name__ == '__main__':
