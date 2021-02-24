@@ -6,32 +6,20 @@ import math
 from collections import namedtuple
 
 class NuclearData:
-    nucleus = namedtuple('Nucleus', 'A Z')
+    '''
+    Class to perform various nuclear energy calculations either using A-level constants or accurate constants.
+    Uses the AME2016 dataset from "https://www-nds.iaea.org/amdc/ame2016/mass16.txt".
+    Keyword arguments:
+    accurate -- boolean type to switch between sets of fundamental constants with differing accuracy, default = False
+    '''
+    # define a Nucleus Type
+    Nucleus = namedtuple('Nucleus', ['A', 'Z'])
 
     # constructor
     def __init__(self, accurate=False):
+
         # class members
         self.accurate = accurate
-
-        # define constants 
-        if self.accurate:
-            self.AMU = 1.660539040E-27
-            self.ELECTRONMASS = 5.48579909070E-4
-            self.PROTONMASS = 1.00727646693
-            self.HYDROGENMASS = 1.00782503224
-            self.NEUTRONMASS = 1.00866491582
-            self.SPEEDOFLIGHT = 2.99792458E8
-            self.ELECTRONCHARGE = 1.0000000983 * 1.602176634E-19
-            self.AMUTOKEV = 931494.0038
-        else:
-            self.AMU = 1.661e-27
-            self.ELECTRONMASS = 5.485e-4
-            self.PROTONMASS = 1.0072
-            self.HYDROGENMASS = self.ELECTRONMASS + self.PROTONMASS
-            self.NEUTRONMASS = 1.0084
-            self.SPEEDOFLIGHT = 3.00e8
-            self.ELECTRONCHARGE = 1.60e-19
-            self.AMUTOKEV = self.AMU * self.SPEEDOFLIGHT**2 / self.ELECTRONCHARGE * 1e-3
 
         # Download the data from the server address specified by url
         url = "https://www-nds.iaea.org/amdc/ame2016/mass16.txt"
@@ -42,11 +30,12 @@ class NuclearData:
             data = req.content.decode('ISO-8859-1')
         else:
             # terminate the app
-            exit(0)
+            print("Could not download data...")
+            exit(1)
 
         # Read the experimental data into a Pandas DataFrame.
         self.df = pd.read_fwf(io.StringIO(data),
-            skiprows=41,
+            skiprows=39,
             header=None,
             widths=(1,3,5,5,5,1,3,4,1,13,11,11,9,1,2,11,9,1,16,11),
             usecols=(2,3,4,6,9,10,11,12,18,19),
@@ -68,136 +57,184 @@ class NuclearData:
         for column in self.df.columns[8:]:
             self.df[column] = pd.to_numeric(self.df[column], errors='coerce') * 1e-6
 
+        # Need to replace values in the first two rows to agree with constants defined above
+        # define physical constants 
+        if self.accurate:
+            self.AMU = 1.660539040E-27
+            self.SPEEDOFLIGHT = 2.99792458E8
+            self.ELECTRONCHARGE = 1.0000000983 * 1.602176634E-19
+            self.AMUTOKEV = 931494.0038
+            self.AMUTOMEV = self.AMUTOKEV / 1000
+            self.ELECTRONMASS = 5.48579909070E-4
+            self.HYDROGENMASS = self.getAtomicMassAMU(self.Nucleus(1,1))
+            # Proton mass needs correction for binding energy of electron - not actually used though
+            #self.PROTONMASS = self.HYDROGENMASS - self.ELECTRONMASS + 13.59844e-3 / self.AMUTOKEV 
+            self.PROTONMASS = self.HYDROGENMASS - self.ELECTRONMASS 
+            self.NEUTRONMASS = self.getAtomicMassAMU(self.Nucleus(1,0))
+
+        else:
+            self.AMU = 1.661e-27
+            self.SPEEDOFLIGHT = 3.00e8
+            self.ELECTRONCHARGE = 1.60e-19
+            self.AMUTOKEV = self.AMU * self.SPEEDOFLIGHT**2 / self.ELECTRONCHARGE * 1e-3
+            self.AMUTOMEV = self.AMUTOKEV / 1000
+            self.ELECTRONMASS = 5.485e-4
+            self.PROTONMASS = 1.0072
+            self.HYDROGENMASS = self.ELECTRONMASS + self.PROTONMASS
+            self.NEUTRONMASS = 1.0084
+            # change proton and neutron masses in the dataframe since we are using simple constants
+            self.df.loc[0, 'AtomicMass'] = self.NEUTRONMASS
+            self.df.loc[1, 'AtomicMass'] = self.HYDROGENMASS
+
         # calc nuclear mass in amu
         self.df['NuclearMassAMU'] = self.df['AtomicMass'] - self.df['Z'] * self.ELECTRONMASS
 
-        # calc mass defect in amu
+        # calc mass defect in amu - as defined in the AME2016 Paper
         self.df['MassDefectAMU'] = (self.df['Z'] * self.HYDROGENMASS + self.df['N'] * self.NEUTRONMASS) - self.df['AtomicMass']
         #self.df['MassDefectAMU'] = (self.df['Z'] * PROTONMASS + self.df['N'] * NEUTRONMASS) - self.df['NuclearMass']
 
-    # return the element name
-    def getElementName(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    # find the specified nucleus
+    def findNucleus(self, nucleus):
+        '''
+        Internal function that returns a dataframe object of the specified nucleus.
+        Keyword arguments:
+        nucleus -- the nucleus of interest defined by the type: Nucleus(A, Z)
+        '''
+        # perform search of dataframe
+        result = self.df.query('A ==' + str(nucleus.A) + ' & Z ==' + str(nucleus.Z))
+        if result.empty:    # nucleus not found, terminate the calculation
+            print("The nucleus (A = " + str(nucleus.A) + ", Z = " + str(nucleus.Z) + ") could not be found.")
+            exit(1)
+        return result
+    
+    def getElementName(self, nucleus):
+        '''
+        Returns the element name of the specified nucleus.
+        Keyword arguments:
+        nucleus -- the nucleus of interest defined by the type: Nucleus(A, Z)
+        '''
+        # find the nucleus
+        result = self.findNucleus(nucleus)
         return result['El'].values[0]
 
     # return the element proton number
-    def getProtonNumber(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    def getProtonNumber(self, nucleus):
+        result = self.findNucleus(nucleus)
         return result['Z'].values[0]
 
     # return the element neutron number
-    def getNeutronNumber(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    def getNeutronNumber(self, nucleus):
+        result = self.findNucleus(nucleus)
         return result['N'].values[0]
 
     # return the element nucleon number
-    def getNucleonNumber(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    def getNucleonNumber(self, nucleus):
+        result = self.findNucleus(nucleus)
         return result['A'].values[0]
 
     # return the element atomic mass / u
-    def getAtomicMassAMU(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    def getAtomicMassAMU(self, nucleus):
+        result = self.findNucleus(nucleus)
         return result['AtomicMass'].values[0]
 
     # return the element atomic mass / kg
-    def getAtomicMassKG(self, A, Z):
-        return self.getAtomicMassAMU(A, Z) * self.AMU
+    def getAtomicMassKG(self, nucleus):
+        return self.getAtomicMassAMU(nucleus) * self.AMU
 
     # return the element nuclear mass / u
-    def getNuclearMassAMU(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    def getNuclearMassAMU(self, nucleus):
+        result = self.findNucleus(nucleus)
         return result['NuclearMassAMU'].values[0]
 
     # return the element nuclear mass / kg
-    def getNuclearMassKG(self, A, Z):
-        return self.getNuclearMassAMU(A, Z) * self.AMU
+    def getNuclearMassKG(self, nucleus):
+        return self.getNuclearMassAMU(nucleus) * self.AMU
 
     # return the element nuclear mass defect / u
-    def getMassDefectAMU(self, A, Z):
-        result = self.df.query('A ==' + str(A) + ' & Z ==' + str(Z))
+    def getMassDefectAMU(self, nucleus):
+        result = self.findNucleus(nucleus)
         return result['MassDefectAMU'].values[0]
 
     # return the element nuclear mass defect / kg
-    def getMassDefectKG(self, A, Z):
-        return self.getMassDefectAMU(A, Z) * self.AMU
+    def getMassDefectKG(self, nucleus):
+        return self.getMassDefectAMU(nucleus) * self.AMU
 
     # return the element binding energy / keV
-    def getBindingEnergyMEV(self, A, Z):
-        return self.getMassDefectAMU(A, Z) * self.AMUTOKEV / 1e3
+    def getBindingEnergyMEV(self, nucleus):
+        return self.getMassDefectAMU(nucleus) * self.AMUTOKEV / 1e3
 
     # return the element binding energy / J
-    def getBindingEnergyJ(self, A, Z):
-        return self.getMassDefectAMU(A, Z) * self.AMU * self.SPEEDOFLIGHT**2
+    def getBindingEnergyJ(self, nucleus):
+        return self.getMassDefectAMU(nucleus) * self.AMU * self.SPEEDOFLIGHT**2
 
     # return the element binding energy per nucleon / keV
-    def getBindingEnergyPerNucleonMEV(self, A, Z):
-        return self.getBindingEnergyMEV(A, Z) / A
+    def getBindingEnergyPerNucleonMEV(self, nucleus):
+        return self.getBindingEnergyMEV(nucleus) / nucleus.A
 
     # return the element binding energy per nucleon / J
-    def getBindingEnergyPerNucleonJ(self, A, Z):
-        return self.getBindingEnergyJ(A, Z) / A
+    def getBindingEnergyPerNucleonJ(self, nucleus):
+        return self.getBindingEnergyJ(nucleus) / nucleus.A
 
     # print a formatted table of data in reduced units
-    def printTable(self, A, Z):
+    def printTable(self, nucleus):
         dash = '-' * 52
         # Print the table header
         print(dash)
         print('{:<36s}{:<14s}'.format('Quantity', 'Value'))
         print(dash)
         # Now the data
-        print('{:<36s}{:<14s}'.format('Element', self.getElementName(A, Z)))
-        print('{:<36s}{:<14d}'.format('Proton Number', self.getProtonNumber(A, Z)))
-        print('{:<36s}{:<14d}'.format('Nucleon Number', self.getNucleonNumber(A, Z)))
-        print('{:<36s}{:<14d}'.format('Neutron Number', self.getNeutronNumber(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Atomic Mass / u', self.getAtomicMassAMU(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Nuclear Mass / u', self.getNuclearMassAMU(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Mass Defect / u', self.getMassDefectAMU(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Binding Energy / MeV', self.getBindingEnergyMEV(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Binding Energy per Nucleon / MeV', self.getBindingEnergyPerNucleonMEV(A, Z)))
+        print('{:<36s}{:<14s}'.format('Element', self.getElementName(nucleus)))
+        print('{:<36s}{:<14d}'.format('Proton Number', self.getProtonNumber(nucleus)))
+        print('{:<36s}{:<14d}'.format('Nucleon Number', self.getNucleonNumber(nucleus)))
+        print('{:<36s}{:<14d}'.format('Neutron Number', self.getNeutronNumber(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Atomic Mass / u', self.getAtomicMassAMU(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Nuclear Mass / u', self.getNuclearMassAMU(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Mass Defect / u', self.getMassDefectAMU(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Binding Energy / MeV', self.getBindingEnergyMEV(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Binding Energy per Nucleon / MeV', self.getBindingEnergyPerNucleonMEV(nucleus)))
         print(dash)
 
     # print a formatted table of data in SI units
-    def printTableSI(self, A, Z):
+    def printTableSI(self, nucleus):
         dash = '-' * 52
         # Print the table header
         print(dash)
         print('{:<36s}{:<14s}'.format('Quantity', 'Value'))
         print(dash)
         # Now the data
-        print('{:<36s}{:<14s}'.format('Element', self.getElementName(A, Z)))
-        print('{:<36s}{:<14d}'.format('Proton Number', self.getProtonNumber(A, Z)))
-        print('{:<36s}{:<14d}'.format('Nucleon Number', self.getNucleonNumber(A, Z)))
-        print('{:<36s}{:<14d}'.format('Neutron Number', self.getNeutronNumber(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Atomic Mass / kg', self.getAtomicMassKG(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Nuclear Mass / kg', self.getNuclearMassKG(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Mass Defect / kg', self.getMassDefectKG(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Binding Energy / J', self.getBindingEnergyJ(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Binding Energy per Nucleon / J', self.getBindingEnergyPerNucleonJ(A, Z)))
+        print('{:<36s}{:<14s}'.format('Element', self.getElementName(nucleus)))
+        print('{:<36s}{:<14d}'.format('Proton Number', self.getProtonNumber(nucleus)))
+        print('{:<36s}{:<14d}'.format('Nucleon Number', self.getNucleonNumber(nucleus)))
+        print('{:<36s}{:<14d}'.format('Neutron Number', self.getNeutronNumber(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Atomic Mass / kg', self.getAtomicMassKG(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Nuclear Mass / kg', self.getNuclearMassKG(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Mass Defect / kg', self.getMassDefectKG(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Binding Energy / J', self.getBindingEnergyJ(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Binding Energy per Nucleon / J', self.getBindingEnergyPerNucleonJ(nucleus)))
         print(dash)
 
     # print a formatted table of data in both units
-    def printTableAll(self, A, Z):
+    def printTableAll(self, nucleus):
         dash = '-' * 52
         # Print the table header
         print(dash)
         print('{:<36s}{:<14s}'.format('Quantity', 'Value'))
         print(dash)
         # Now the data
-        print('{:<36s}{:<14s}'.format('Element', self.getElementName(A, Z)))
-        print('{:<36s}{:<14d}'.format('Proton Number', self.getProtonNumber(A, Z)))
-        print('{:<36s}{:<14d}'.format('Nucleon Number', self.getNucleonNumber(A, Z)))
-        print('{:<36s}{:<14d}'.format('Neutron Number', self.getNeutronNumber(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Atomic Mass / u', self.getAtomicMassAMU(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Atomic Mass / kg', self.getAtomicMassKG(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Nuclear Mass / u', self.getNuclearMassAMU(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Nuclear Mass / kg', self.getNuclearMassKG(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Mass Defect / u', self.getMassDefectAMU(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Mass Defect / kg', self.getMassDefectKG(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Binding Energy / MeV', self.getBindingEnergyMEV(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Binding Energy / J', self.getBindingEnergyJ(A, Z)))
-        print('{:<36s}{:<14.8f}'.format('Binding Energy per Nucleon / MeV', self.getBindingEnergyPerNucleonMEV(A, Z)))
-        print('{:<36s}{:<14.8e}'.format('Binding Energy per Nucleon / J', self.getBindingEnergyPerNucleonJ(A, Z)))
+        print('{:<36s}{:<14s}'.format('Element', self.getElementName(nucleus)))
+        print('{:<36s}{:<14d}'.format('Proton Number', self.getProtonNumber(nucleus)))
+        print('{:<36s}{:<14d}'.format('Nucleon Number', self.getNucleonNumber(nucleus)))
+        print('{:<36s}{:<14d}'.format('Neutron Number', self.getNeutronNumber(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Atomic Mass / u', self.getAtomicMassAMU(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Atomic Mass / kg', self.getAtomicMassKG(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Nuclear Mass / u', self.getNuclearMassAMU(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Nuclear Mass / kg', self.getNuclearMassKG(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Mass Defect / u', self.getMassDefectAMU(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Mass Defect / kg', self.getMassDefectKG(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Binding Energy / MeV', self.getBindingEnergyMEV(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Binding Energy / J', self.getBindingEnergyJ(nucleus)))
+        print('{:<36s}{:<14.8f}'.format('Binding Energy per Nucleon / MeV', self.getBindingEnergyPerNucleonMEV(nucleus)))
+        print('{:<36s}{:<14.8e}'.format('Binding Energy per Nucleon / J', self.getBindingEnergyPerNucleonJ(nucleus)))
         print(dash)
 
     # print a formatted table of data in both units
@@ -251,16 +288,16 @@ class NuclearData:
         plt.show()
 
     # calc energy release in alpha decay
-    def calcAlphaEnergyReleaseMEV(self, A, Z):
+    def calcAlphaEnergyReleaseMEV(self, nucleus):
         # can work in atomic masses here...
         # get the atomic mass of an alpha
-        alphaMass = self.getAtomicMassAMU(4, 2)
+        alphaMass = self.getAtomicMassAMU(self.Nucleus(4, 2))
 
         # get the mass of the parent
-        parentMass =  self.getAtomicMassAMU(A, Z)
+        parentMass = self.getAtomicMassAMU(nucleus)
 
         # get the mass of the daughter
-        daughterMass =  self.getAtomicMassAMU(A - 4, Z - 2)
+        daughterMass = self.getAtomicMassAMU(self.Nucleus(nucleus.A - 4, nucleus.Z - 2))
 
         # mass change
         deltaMass = (daughterMass + alphaMass) - parentMass
@@ -271,9 +308,9 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcAlphaEnergyReleaseJ(self, A, Z):
+    def calcAlphaEnergyReleaseJ(self, nucleus):
         # get energy release in MeV
-        energyRelease = self.calcAlphaEnergyReleaseMEV(A, Z)
+        energyRelease = self.calcAlphaEnergyReleaseMEV(nucleus)
 
         # convert to amu
         energyRelease *= 1000 / self.AMUTOKEV 
@@ -284,19 +321,19 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcAlphaEnergyMEV(self, A, Z):
+    def calcAlphaEnergyMEV(self, nucleus):
         # get energy release in MeV
-        energyRelease = abs(self.calcAlphaEnergyReleaseMEV(A, Z))
+        energyRelease = abs(self.calcAlphaEnergyReleaseMEV(nucleus))
 
         # fraction going to alpha particle - see http://www.personal.soton.ac.uk/ab1u06/teaching/phys3002/course/07_alpha.pdf
-        alphaEnergy = energyRelease * (A - 4) / A
+        alphaEnergy = energyRelease * (nucleus.A - 4) / nucleus.A
 
         # return the value
         return alphaEnergy
 
-    def calcAlphaEnergyJ(self, A, Z):
+    def calcAlphaEnergyJ(self, nucleus):
         # get alpha energy in MeV
-        alphaEnergy = self.calcAlphaEnergyMEV(A, Z)
+        alphaEnergy = self.calcAlphaEnergyMEV(nucleus)
 
         # convert to amu
         alphaEnergy *= 1000 / self.AMUTOKEV 
@@ -307,12 +344,12 @@ class NuclearData:
         # return the value
         return alphaEnergy
 
-    def calcAlphaSpeed(self, A, Z):
+    def calcAlphaSpeed(self, nucleus):
         # get alpha energy in J
-        alphaEnergy = self.calcAlphaEnergyJ(A, Z)
+        alphaEnergy = self.calcAlphaEnergyJ(nucleus)
 
         # get alpha mass in kg
-        alphaMass = self.getNuclearMassKG(4, 2)
+        alphaMass = self.getNuclearMassKG(self.Nucleus(4, 2))
 
         # get alpha speed in m/s
         alphaSpeed = math.sqrt(2 * alphaEnergy / alphaMass)
@@ -320,12 +357,12 @@ class NuclearData:
         # return the value
         return alphaSpeed
 
-    def calcBetaEnergyReleaseMEV(self, A, Z):
+    def calcBetaEnergyReleaseMEV(self, nucleus):
         # get the mass of the parent nucleus
-        parentMass = self.getNuclearMassAMU(A, Z)
+        parentMass = self.getNuclearMassAMU(nucleus)
 
         # get the mass of the daughter nucleus
-        daughterMass = self.getNuclearMassAMU(A, Z + 1)
+        daughterMass = self.getNuclearMassAMU(self.Nucleus(nucleus.A, nucleus.Z + 1))
 
         # mass change
         deltaMass = (daughterMass + self.ELECTRONMASS) - parentMass
@@ -336,9 +373,9 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcBetaEnergyReleaseJ(self, A, Z):
+    def calcBetaEnergyReleaseJ(self, nucleus):
         # get energy release in MeV
-        energyRelease = self.calcBetaEnergyReleaseMEV(A, Z)
+        energyRelease = self.calcBetaEnergyReleaseMEV(nucleus)
 
         # convert to amu
         energyRelease *= 1000 / self.AMUTOKEV 
@@ -349,19 +386,19 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcBetaEnergyMEV(self, A, Z):
+    def calcBetaEnergyMEV(self, nucleus):
         # get energy release in MeV
-        energyRelease = abs(self.calcBetaEnergyReleaseMEV(A, Z))
+        energyRelease = abs(self.calcBetaEnergyReleaseMEV(nucleus))
 
         # fraction going to beta particle - see http://www.personal.soton.ac.uk/ab1u06/teaching/phys3002/course/07_alpha.pdf
-        betaEnergy = energyRelease * (A - self.ELECTRONMASS) / A
+        betaEnergy = energyRelease * (nucleus.A - self.ELECTRONMASS) / nucleus.A
 
         # return the value
         return betaEnergy
 
-    def calcBetaEnergyJ(self, A, Z):
+    def calcBetaEnergyJ(self, nucleus):
         # get beta energy in MeV
-        betaEnergy = self.calcBetaEnergyMEV(A, Z)
+        betaEnergy = self.calcBetaEnergyMEV(nucleus)
 
         # convert to amu
         betaEnergy *= 1000 / self.AMUTOKEV 
@@ -372,9 +409,9 @@ class NuclearData:
         # return the value
         return betaEnergy
 
-    def calcBetaSpeed(self, A, Z):
+    def calcBetaSpeed(self, nucleus):
         # get beta energy in J
-        betaEnergy = self.calcBetaEnergyJ(A, Z)
+        betaEnergy = self.calcBetaEnergyJ(nucleus)
 
         # get alpha mass in kg
         betaMass = self.ELECTRONMASS * self.AMU
@@ -389,76 +426,209 @@ class NuclearData:
         # return the value
         return betaSpeed
 
-    def printAlphaSpeed(self, A, Z):
+    def printAlphaSpeed(self, nucleus):
         # print the value
-        print('{:<20s}{:<14.4e}'.format('Alpha Speed (m/s) =', self.calcAlphaSpeed(A, Z)))
+        print('{:<20s}{:<14.4e}'.format('Alpha Speed (m/s) =', self.calcAlphaSpeed(nucleus)))
 
-    def printAlphaEnergyMeV(self, A, Z):
+    def printAlphaEnergyMeV(self, nucleus):
         # print the value
-        print('{:<17s}{:<14.4f}'.format('Alpha KE (MeV) =', self.calcAlphaEnergyMEV(A, Z)))
+        print('{:<17s}{:<14.4f}'.format('Alpha KE (MeV) =', self.calcAlphaEnergyMEV(nucleus)))
 
-    def printAlphaEnergyJ(self, A, Z):
+    def printAlphaEnergyJ(self, nucleus):
         # print the value
-        print('{:<15s}{:<14.4e}'.format('Alpha KE (J) =', self.calcAlphaEnergyJ(A, Z)))
+        print('{:<15s}{:<14.4e}'.format('Alpha KE (J) =', self.calcAlphaEnergyJ(nucleus)))
 
-    def printAlphaEnergyReleaseMeV(self, A, Z):
+    def printAlphaEnergyReleaseMeV(self, nucleus):
         # print the value
-        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcAlphaEnergyReleaseMEV(A, Z)))
+        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcAlphaEnergyReleaseMEV(nucleus)))
 
-    def printAlphaEnergyReleaseJ(self, A, Z):
+    def printAlphaEnergyReleaseJ(self, nucleus):
         # print the value
-        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcAlphaEnergyReleaseJ(A, Z)))
+        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcAlphaEnergyReleaseJ(nucleus)))
 
-    def printBetaSpeed(self, A, Z):
+    def printBetaSpeed(self, nucleus):
         # print the value
-        print('{:<20s}{:<14.4e}'.format('Beta Speed (m/s) =', self.calcBetaSpeed(A, Z)))
+        print('{:<20s}{:<14.4e}'.format('Beta Speed (m/s) =', self.calcBetaSpeed(nucleus)))
 
-    def printBetaEnergyMeV(self, A, Z):
+    def printBetaEnergyMeV(self, nucleus):
         # print the value
-        print('{:<17s}{:<14.4f}'.format('Beta KE (MeV) =', self.calcBetaEnergyMEV(A, Z)))
+        print('{:<17s}{:<14.4f}'.format('Beta KE (MeV) =', self.calcBetaEnergyMEV(nucleus)))
 
-    def printBetaEnergyJ(self, A, Z):
+    def printBetaEnergyJ(self, nucleus):
         # print the value
-        print('{:<15s}{:<14.4e}'.format('Beta KE (J) =', self.calcBetaEnergyJ(A, Z)))
+        print('{:<15s}{:<14.4e}'.format('Beta KE (J) =', self.calcBetaEnergyJ(nucleus)))
 
-    def printBetaEnergyReleaseMeV(self, A, Z):
+    def printBetaEnergyReleaseMeV(self, nucleus):
         # print the value
-        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcBetaEnergyReleaseMEV(A, Z)))
+        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcBetaEnergyReleaseMEV(nucleus)))
 
-    def printBetaEnergyReleaseJ(self, A, Z):
+    def printBetaEnergyReleaseJ(self, nucleus):
         # print the value
-        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcBetaEnergyReleaseJ(A, Z)))
+        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcBetaEnergyReleaseJ(nucleus)))
 
-    def calcFissioEnergyReleaseMEV(self, pn, ff1, ff2):
-        energyRelease = self.getBindingEnergyMEV(pn.A,pn.Z) - (self.getBindingEnergyMEV(ff1.A,ff1.Z) + self.getBindingEnergyMEV(ff2.A,ff2.Z))
+    def calcFissionEnergyReleaseMEV(self, parentNuc, daughterNuc1, daughterNuc2):
+        '''
+        Returns the energy released in MeV for the specified fission process.
+        Keyword arguments:
+        parentNuc -- the parent nucleus defined by the type: Nucleus(A, Z)
+        daughterNuc1 -- the daughter nucleus defined by the type: Nucleus(A, Z)
+        daughterNuc2 -- the partner daughter nucleus defined by the type: Nucleus(A, Z)
+        '''
+        # perform sanity check to make sure that Z is conserved
+        deltaZ = parentNuc.Z - (daughterNuc1.Z + daughterNuc2.Z)
+        if deltaZ != 0:
+            print("The proton number is not conserved in this process, exiting...")
+            exit(1)
+        energyRelease = self.getBindingEnergyMEV(parentNuc) - (self.getBindingEnergyMEV(daughterNuc1) + self.getBindingEnergyMEV(daughterNuc2))
         return energyRelease
 
-    def calcFissioEnergyReleaseJ(self, pn, ff1, ff2):
-        energyRelease = self.calcFissioEnergyReleaseMEV(pn, ff1, ff2) * 1000 * self.AMU * self.SPEEDOFLIGHT**2 / ((self.AMUTOKEV))
+    def calcFissionEnergyReleaseJ(self, parentNuc, daughterNuc1, daughterNuc2):
+        '''
+        Returns the energy released in J for the specified fission process.
+        Keyword arguments:
+        parentNuc -- the parent nucleus defined by the type: Nucleus(A, Z)
+        daughterNuc1 -- the daughter nucleus defined by the type: Nucleus(A, Z)
+        daughterNuc2 -- the partner daughter nucleus defined by the type: Nucleus(A, Z)
+        '''
+        energyRelease = self.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2) * self.AMU * self.SPEEDOFLIGHT**2 / self.AMUTOMEV
         return energyRelease
+
+    def calcFusionEnergyReleaseMEV(self, reactants, products):
+        '''
+        Returns the energy released in MeV for the specified fission process.
+        Keyword arguments:
+        reactants -- list of the reactant nuclei defined by the type: Nucleus(A, Z)
+        products -- list of the product nuclei defined by the type: Nucleus(A, Z)
+        '''
+        # perform sanity check to make sure that A, Z are conserved
+        reactantA = 0
+        reactantZ = 0
+        for reactant in reactants:
+            reactantA += reactant.A
+            reactantZ += reactant.Z
+
+        productA = 0
+        productZ = 0
+        for product in products:
+            productA += product.A
+            productZ += product.Z
+
+        if (reactantZ - productZ):
+            print("The proton number is not conserved in this process, exiting...")
+            exit(1)
+
+        if (reactantA - productA):
+            print("The nucleon number is not conserved in this process, exiting...")
+            exit(1)
+
+        # total up the masses of reactants
+        reactantMass = 0
+        for reactant in reactants:
+            if (reactant == self.Nucleus(0,-1) or reactant == self.Nucleus(0,1)):  # electron/positron detected
+                reactantMass += self.ELECTRONMASS
+            else:
+                reactantMass += self.getNuclearMassAMU(reactant)
+
+        # total up the masses of products
+        productMass = 0
+        for product in products:
+            if (product == self.Nucleus(0,-1) or product == self.Nucleus(0,1)):  # electron/positron detected
+                productMass += self.ELECTRONMASS
+            else:
+                productMass += self.getNuclearMassAMU(product)
+
+        # calculate mass change
+        deltaMass = productMass - reactantMass
+        #return energy release in MeV
+        energyRelease = deltaMass * self.AMUTOMEV
+        return energyRelease
+
+    def toKG(self):
+        print("hello")
+        pass
 
 # for debugging
 if __name__ == '__main__':
-    data = NuclearData(accurate=False)
-    A = 228
-    Z = 90
-    data.printAlphaSpeed(A, Z)
-    data.printAlphaEnergyJ(A, Z)
-    data.printAlphaEnergyMeV(A, Z)
-    data.printAlphaEnergyReleaseMeV(A, Z)
-    data.printAlphaEnergyReleaseJ(A, Z)
+    # create object
+    data = NuclearData(accurate=True)
 
-    A = 60
-    Z = 27
-    data.printBetaSpeed(A, Z)
-    data.printBetaEnergyJ(A, Z)
-    data.printBetaEnergyMeV(A, Z)
-    data.printBetaEnergyReleaseMeV(A, Z)
-    data.printBetaEnergyReleaseJ(A, Z)
+    # define nucleus type
+    Nucleus = namedtuple('Nucleus', ['A', 'Z'])
 
-    data.printConstants()
+    # perform unit tests
+    if (data.accurate):
+        # alpha energy
+        # create a nucleus
+        nucleus = Nucleus(A=228,Z=90)
 
-    parent = data.nucleus(235,92)
-    ff1 = data.nucleus(144,56)
-    ff2 = data.nucleus(90,36)
-    print(data.calcFissioEnergyReleaseJ(parent, ff1, ff2))
+        test = data.calcAlphaEnergyReleaseMEV(nucleus) 
+        assert test == -5.520152576655016, "result should be -5.520152576655016"
+
+        test = data.calcAlphaEnergyReleaseJ(nucleus) 
+        assert test == -8.84426026909684e-13, "result should be -8.84426026909684e-13"
+
+        test = data.calcAlphaEnergyMEV(nucleus) 
+        assert test == 5.423307794608436, "result should be 5.423307794608436"
+
+        test = data.calcAlphaEnergyJ(nucleus)
+        assert test == 8.689097808235492e-13, "result should be 8.689097808235492e-13"
+
+        test = data.calcAlphaSpeed(nucleus) 
+        assert test == 16172086.447361581, "result should be 16172086.447361581"
+
+        # beta energy
+        # create a nucleus
+        nucleus = Nucleus(A=60,Z=27)
+
+        test = data.calcBetaEnergyReleaseMEV(nucleus) 
+        assert test == -2.822809675553812, "result should be -2.822809675553812"
+
+        test = data.calcBetaEnergyReleaseJ(nucleus) 
+        assert test == -4.5226401107649964e-13, "result should be -4.5226401107649964e-13"
+
+        test = data.calcBetaEnergyMEV(nucleus) 
+        assert test == 2.8227838666092264, "result should be 2.8227838666092264"
+
+        test = data.calcBetaEnergyJ(nucleus)
+        assert test == 4.522598760273318e-13, "result should be 4.522598760273318e-13"
+
+        test = data.calcBetaSpeed(nucleus)
+        assert test == 296249796.25722736, "result should be 296249796.25722736"
+
+        # fusion
+        # create nuclei
+        reactants = [Nucleus(A=1,Z=1),Nucleus(A=1,Z=1),Nucleus(A=1,Z=1), Nucleus(A=1,Z=1), Nucleus(A=0,Z=-1), Nucleus(A=0,Z=-1)]
+        products = [Nucleus(A=4, Z=2)]
+        test = data.calcFusionEnergyReleaseMEV(reactants, products)
+        assert test == -26.730966831944606, "result should be -26.730966831944606"
+
+        # fission
+        # create nuclei
+        parentNuc = Nucleus(A=238,Z=92)
+        daughterNuc1 = Nucleus(A=95,Z=38)
+        daughterNuc2 = Nucleus(A=140,Z=54)
+        test = data.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2)
+        assert test == -171.19983397432816, "result should be -171.19983397432816"
+
+        print("All tests passed successfully")
+
+
+#    data.printTable(Nucleus(A=8,Z=2))
+#    data.printTable(Nucleus(A=228,Z=90))
+#    data.printConstants()
+#    help(NuclearData)
+
+#    parentNuc = Nucleus(A=235,Z=92)
+#    daughterNuc1 = Nucleus(A=144,Z=56)
+#    daughterNuc2 = Nucleus(A=90,Z=36)
+#    print(data.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2))
+#    print(data.calcFissionEnergyReleaseJ(parentNuc, daughterNuc1, daughterNuc2))
+
+#    reactants = [Nucleus(A=2,Z=1), Nucleus(A=2,Z=1)]
+#    products = [Nucleus(A=4,Z=2)]
+#    print(data.calcFusionEnergyReleaseMEV(reactants, products))
+
+#    parentNuc = Nucleus(A=235,Z=92)
+#    daughterNuc1 = Nucleus(A=144,Z=55)
+#    daughterNuc2 = Nucleus(A=90,Z=37)
+#    print(data.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2))
