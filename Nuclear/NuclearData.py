@@ -429,7 +429,10 @@ class NuclearData:
 
     def calcFissionEnergyReleaseMEV(self, parentNuc, daughterNuc1, daughterNuc2):
         '''
-        Returns the energy released in MeV for the specified fission process.
+        Returns the energy released in MeV for the specified fission process. The
+        calculation is performed using the difference in binding energies between
+        the parent and dauaghter nuclei. This yields the same result as calculating
+        mass difference in products and reactants.
         Keyword arguments:
         parentNuc -- the parent nucleus defined by the type: Nucleus(A, Z)
         daughterNuc1 -- the daughter nucleus defined by the type: Nucleus(A, Z)
