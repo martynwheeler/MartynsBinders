@@ -289,7 +289,7 @@ class NuclearData:
         plt.show()
 
     # calc energy release in alpha decay
-    def calcAlphaEnergyReleaseMEV(self, nucleus):
+    def getAlphaEnergyReleaseMEV(self, nucleus):
         # can work in atomic masses here...
         # get the atomic mass of an alpha
         alphaMass = self.getAtomicMassAMU(self.Nucleus(4, 2))
@@ -309,9 +309,9 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcAlphaEnergyReleaseJ(self, nucleus):
+    def getAlphaEnergyReleaseJ(self, nucleus):
         # get energy release in MeV
-        energyRelease = self.calcAlphaEnergyReleaseMEV(nucleus)
+        energyRelease = self.getAlphaEnergyReleaseMEV(nucleus)
 
         # convert to amu
         energyRelease *= 1000 / self.AMUTOKEV 
@@ -322,9 +322,9 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcAlphaEnergyMEV(self, nucleus):
+    def getAlphaEnergyMEV(self, nucleus):
         # get energy release in MeV
-        energyRelease = abs(self.calcAlphaEnergyReleaseMEV(nucleus))
+        energyRelease = abs(self.getAlphaEnergyReleaseMEV(nucleus))
 
         # fraction going to alpha particle - see http://www.personal.soton.ac.uk/ab1u06/teaching/phys3002/course/07_alpha.pdf
         alphaEnergy = energyRelease * (nucleus.A - 4) / nucleus.A
@@ -332,9 +332,9 @@ class NuclearData:
         # return the value
         return alphaEnergy
 
-    def calcAlphaEnergyJ(self, nucleus):
+    def getAlphaEnergyJ(self, nucleus):
         # get alpha energy in MeV
-        alphaEnergy = self.calcAlphaEnergyMEV(nucleus)
+        alphaEnergy = self.getAlphaEnergyMEV(nucleus)
 
         # convert to amu
         alphaEnergy *= 1000 / self.AMUTOKEV 
@@ -345,9 +345,9 @@ class NuclearData:
         # return the value
         return alphaEnergy
 
-    def calcAlphaSpeed(self, nucleus):
+    def getAlphaSpeed(self, nucleus):
         # get alpha energy in J
-        alphaEnergy = self.calcAlphaEnergyJ(nucleus)
+        alphaEnergy = self.getAlphaEnergyJ(nucleus)
 
         # get alpha mass in kg
         alphaMass = self.getNuclearMassKG(self.Nucleus(4, 2))
@@ -358,7 +358,7 @@ class NuclearData:
         # return the value
         return alphaSpeed
 
-    def calcBetaEnergyReleaseMEV(self, nucleus):
+    def getBetaEnergyReleaseMEV(self, nucleus):
         # get the mass of the parent nucleus
         parentMass = self.getNuclearMassAMU(nucleus)
 
@@ -374,9 +374,9 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcBetaEnergyReleaseJ(self, nucleus):
+    def getBetaEnergyReleaseJ(self, nucleus):
         # get energy release in MeV
-        energyRelease = self.calcBetaEnergyReleaseMEV(nucleus)
+        energyRelease = self.getBetaEnergyReleaseMEV(nucleus)
 
         # convert to amu
         energyRelease *= 1000 / self.AMUTOKEV 
@@ -387,9 +387,9 @@ class NuclearData:
         # return the value
         return energyRelease
 
-    def calcBetaEnergyMEV(self, nucleus):
+    def getBetaEnergyMEV(self, nucleus):
         # get energy release in MeV
-        energyRelease = abs(self.calcBetaEnergyReleaseMEV(nucleus))
+        energyRelease = abs(self.getBetaEnergyReleaseMEV(nucleus))
 
         # fraction going to beta particle - see http://www.personal.soton.ac.uk/ab1u06/teaching/phys3002/course/07_alpha.pdf
         betaEnergy = energyRelease * (nucleus.A - self.ELECTRONMASS) / nucleus.A
@@ -397,9 +397,9 @@ class NuclearData:
         # return the value
         return betaEnergy
 
-    def calcBetaEnergyJ(self, nucleus):
+    def getBetaEnergyJ(self, nucleus):
         # get beta energy in MeV
-        betaEnergy = self.calcBetaEnergyMEV(nucleus)
+        betaEnergy = self.getBetaEnergyMEV(nucleus)
 
         # convert to amu
         betaEnergy *= 1000 / self.AMUTOKEV 
@@ -410,9 +410,9 @@ class NuclearData:
         # return the value
         return betaEnergy
 
-    def calcBetaSpeed(self, nucleus):
+    def getBetaSpeed(self, nucleus):
         # get beta energy in J
-        betaEnergy = self.calcBetaEnergyJ(nucleus)
+        betaEnergy = self.getBetaEnergyJ(nucleus)
 
         # get alpha mass in kg
         betaMass = self.ELECTRONMASS * self.AMU
@@ -427,7 +427,7 @@ class NuclearData:
         # return the value
         return betaSpeed
 
-    def calcFissionEnergyReleaseMEV(self, parentNuc, daughterNuc1, daughterNuc2):
+    def getFissionEnergyReleaseMEV(self, parentNuc, daughterNuc1, daughterNuc2):
         '''
         Returns the energy released in MeV for the specified fission process. The
         calculation is performed using the difference in binding energies between
@@ -446,7 +446,7 @@ class NuclearData:
         energyRelease = self.getBindingEnergyMEV(parentNuc) - (self.getBindingEnergyMEV(daughterNuc1) + self.getBindingEnergyMEV(daughterNuc2))
         return energyRelease
 
-    def calcFissionEnergyReleaseJ(self, parentNuc, daughterNuc1, daughterNuc2):
+    def getFissionEnergyReleaseJ(self, parentNuc, daughterNuc1, daughterNuc2):
         '''
         Returns the energy released in J for the specified fission process.
         Keyword arguments:
@@ -454,10 +454,10 @@ class NuclearData:
         daughterNuc1 -- the daughter nucleus defined by the type: Nucleus(A, Z)
         daughterNuc2 -- the partner daughter nucleus defined by the type: Nucleus(A, Z)
         '''
-        energyRelease = self.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2) * self.AMU * self.SPEEDOFLIGHT**2 / self.AMUTOMEV
+        energyRelease = self.getFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2) * self.AMU * self.SPEEDOFLIGHT**2 / self.AMUTOMEV
         return energyRelease
 
-    def calcFusionEnergyReleaseMEV(self, reactants, products):
+    def getFusionEnergyReleaseMEV(self, reactants, products):
         '''
         Returns the energy released in MeV for the specified fusion process.
         Keyword arguments:
@@ -507,71 +507,71 @@ class NuclearData:
         energyRelease = deltaMass * self.AMUTOMEV
         return energyRelease
 
-    def calcFusionEnergyReleaseJ(self, reactants, products):
+    def getFusionEnergyReleaseJ(self, reactants, products):
         '''
         Returns the energy released in J for the specified fusion process.
         Keyword arguments:
         reactants -- list of the reactant nuclei defined by the type: Nucleus(A, Z)
         products -- list of the product nuclei defined by the type: Nucleus(A, Z)
         '''
-        energyRelease = self.calcFusionEnergyReleaseMEV(reactants, products) * self.AMU * self.SPEEDOFLIGHT**2 / self.AMUTOMEV
+        energyRelease = self.getFusionEnergyReleaseMEV(reactants, products) * self.AMU * self.SPEEDOFLIGHT**2 / self.AMUTOMEV
         return energyRelease
 
     def printAlphaSpeed(self, nucleus):
         # print the value
-        print('{:<20s}{:<14.4e}'.format('Alpha Speed (m/s) =', self.calcAlphaSpeed(nucleus)))
+        print('{:<20s}{:<14.4e}'.format('Alpha Speed (m/s) =', self.getAlphaSpeed(nucleus)))
 
     def printAlphaEnergyMeV(self, nucleus):
         # print the value
-        print('{:<17s}{:<14.4f}'.format('Alpha KE (MeV) =', self.calcAlphaEnergyMEV(nucleus)))
+        print('{:<17s}{:<14.4f}'.format('Alpha KE (MeV) =', self.getAlphaEnergyMEV(nucleus)))
 
     def printAlphaEnergyJ(self, nucleus):
         # print the value
-        print('{:<15s}{:<14.4e}'.format('Alpha KE (J) =', self.calcAlphaEnergyJ(nucleus)))
+        print('{:<15s}{:<14.4e}'.format('Alpha KE (J) =', self.getAlphaEnergyJ(nucleus)))
 
     def printAlphaEnergyReleaseMeV(self, nucleus):
         # print the value
-        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcAlphaEnergyReleaseMEV(nucleus)))
+        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.getAlphaEnergyReleaseMEV(nucleus)))
 
     def printAlphaEnergyReleaseJ(self, nucleus):
         # print the value
-        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcAlphaEnergyReleaseJ(nucleus)))
+        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.getAlphaEnergyReleaseJ(nucleus)))
 
     def printBetaSpeed(self, nucleus):
         # print the value
-        print('{:<20s}{:<14.4e}'.format('Beta Speed (m/s) =', self.calcBetaSpeed(nucleus)))
+        print('{:<20s}{:<14.4e}'.format('Beta Speed (m/s) =', self.getBetaSpeed(nucleus)))
 
     def printBetaEnergyMeV(self, nucleus):
         # print the value
-        print('{:<17s}{:<14.4f}'.format('Beta KE (MeV) =', self.calcBetaEnergyMEV(nucleus)))
+        print('{:<17s}{:<14.4f}'.format('Beta KE (MeV) =', self.getBetaEnergyMEV(nucleus)))
 
     def printBetaEnergyJ(self, nucleus):
         # print the value
-        print('{:<15s}{:<14.4e}'.format('Beta KE (J) =', self.calcBetaEnergyJ(nucleus)))
+        print('{:<15s}{:<14.4e}'.format('Beta KE (J) =', self.getBetaEnergyJ(nucleus)))
 
     def printBetaEnergyReleaseMeV(self, nucleus):
         # print the value
-        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcBetaEnergyReleaseMEV(nucleus)))
+        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.getBetaEnergyReleaseMEV(nucleus)))
 
     def printBetaEnergyReleaseJ(self, nucleus):
         # print the value
-        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcBetaEnergyReleaseJ(nucleus)))
+        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.getBetaEnergyReleaseJ(nucleus)))
 
     def printFissionEnergyReleaseJ(self, parentNuc, daughterNuc1, daughterNuc2):
         # print the value
-        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcFissionEnergyReleaseJ(parentNuc, daughterNuc1, daughterNuc2)))
+        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.getFissionEnergyReleaseJ(parentNuc, daughterNuc1, daughterNuc2)))
 
     def printFissionEnergyReleaseMeV(self, parentNuc, daughterNuc1, daughterNuc2):
         # print the value
-        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2)))
+        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.getFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2)))
 
     def printFusionEnergyReleaseJ(self, reactants, products):
         # print the value
-        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.calcFusionEnergyReleaseMEV(reactants, products)))
+        print('{:<21s}{:<14.4e}'.format('Energy Release (J) =', self.getFusionEnergyReleaseMEV(reactants, products)))
 
     def printFusionEnergyReleaseMeV(self, reactants, products):
         # print the value
-        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.calcFusionEnergyReleaseMEV(reactants, products)))
+        print('{:<23s}{:<14.4f}'.format('Energy Release (MeV) =', self.getFusionEnergyReleaseMEV(reactants, products)))
 
     def performTests(self):
         # perform unit tests
@@ -580,45 +580,45 @@ class NuclearData:
             # create a nucleus
             nucleus = Nucleus(A=228,Z=90)
 
-            test = data.calcAlphaEnergyReleaseMEV(nucleus) 
+            test = data.getAlphaEnergyReleaseMEV(nucleus) 
             assert test == -5.520152576655016, "result should be -5.520152576655016"
 
-            test = data.calcAlphaEnergyReleaseJ(nucleus) 
+            test = data.getAlphaEnergyReleaseJ(nucleus) 
             assert test == -8.84426026909684e-13, "result should be -8.84426026909684e-13"
 
-            test = data.calcAlphaEnergyMEV(nucleus) 
+            test = data.getAlphaEnergyMEV(nucleus) 
             assert test == 5.423307794608436, "result should be 5.423307794608436"
 
-            test = data.calcAlphaEnergyJ(nucleus)
+            test = data.getAlphaEnergyJ(nucleus)
             assert test == 8.689097808235492e-13, "result should be 8.689097808235492e-13"
 
-            test = data.calcAlphaSpeed(nucleus) 
+            test = data.getAlphaSpeed(nucleus) 
             assert test == 16172086.447361581, "result should be 16172086.447361581"
 
             # beta energy
             # create a nucleus
             nucleus = Nucleus(A=60,Z=27)
 
-            test = data.calcBetaEnergyReleaseMEV(nucleus) 
+            test = data.getBetaEnergyReleaseMEV(nucleus) 
             assert test == -2.822809675553812, "result should be -2.822809675553812"
 
-            test = data.calcBetaEnergyReleaseJ(nucleus) 
+            test = data.getBetaEnergyReleaseJ(nucleus) 
             assert test == -4.5226401107649964e-13, "result should be -4.5226401107649964e-13"
 
-            test = data.calcBetaEnergyMEV(nucleus) 
+            test = data.getBetaEnergyMEV(nucleus) 
             assert test == 2.8227838666092264, "result should be 2.8227838666092264"
 
-            test = data.calcBetaEnergyJ(nucleus)
+            test = data.getBetaEnergyJ(nucleus)
             assert test == 4.522598760273318e-13, "result should be 4.522598760273318e-13"
 
-            test = data.calcBetaSpeed(nucleus)
+            test = data.getBetaSpeed(nucleus)
             assert test == 296249796.25722736, "result should be 296249796.25722736"
 
             # fusion
             # create nuclei
             reactants = [Nucleus(A=1,Z=1),Nucleus(A=1,Z=1),Nucleus(A=1,Z=1), Nucleus(A=1,Z=1), Nucleus(A=0,Z=-1), Nucleus(A=0,Z=-1)]
             products = [Nucleus(A=4, Z=2)]
-            test = data.calcFusionEnergyReleaseMEV(reactants, products)
+            test = data.getFusionEnergyReleaseMEV(reactants, products)
             assert test == -26.730966831944606, "result should be -26.730966831944606"
 
             # fission
@@ -626,7 +626,7 @@ class NuclearData:
             parentNuc = Nucleus(A=238,Z=92)
             daughterNuc1 = Nucleus(A=95,Z=38)
             daughterNuc2 = Nucleus(A=140,Z=54)
-            test = data.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2)
+            test = data.getFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2)
             assert test == -171.19983397432816, "result should be -171.19983397432816"
 
             print("All tests passed successfully")
@@ -646,18 +646,20 @@ if __name__ == '__main__':
 #    parentNuc = Nucleus(A=235,Z=92)
 #    daughterNuc1 = Nucleus(A=144,Z=56)
 #    daughterNuc2 = Nucleus(A=90,Z=36)
-#    print(data.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2))
+#    print(data.getFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2))
 #    reactants = [Nucleus(A=2,Z=1), Nucleus(A=2,Z=1)]
 #    products = [Nucleus(A=4,Z=2)]
-#    print(data.calcFusionEnergyReleaseMEV(reactants, products))
+#    print(data.getFusionEnergyReleaseMEV(reactants, products))
 
     parentNuc = Nucleus(A=235,Z=92)
     daughterNuc1 = Nucleus(A=144,Z=55)
     daughterNuc2 = Nucleus(A=90,Z=37)
     data.printFissionEnergyReleaseMeV(parentNuc, daughterNuc1, daughterNuc2)
-    print(data.calcFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2))
+    print(data.getFissionEnergyReleaseMEV(parentNuc, daughterNuc1, daughterNuc2))
 
     deltaMass = (2 * data.getAtomicMassAMU(Nucleus(1,0)) + data.getAtomicMassAMU(Nucleus(144,55)) + data.getAtomicMassAMU(Nucleus(90,37)))
     deltaMass -= data.getAtomicMassAMU(Nucleus(1,0)) + data.getAtomicMassAMU(Nucleus(235,92))
     deltaMass *= data.AMUTOMEV
     print(deltaMass)
+
+    data.performTests()
